@@ -1,21 +1,21 @@
 [package]
-name = "windowing"
+name = "application"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tao = "0.11.2"
-derive_deref = "1.1.1"
 bevy_ecs = "*"
-anyhow = "*"
-raw-window-handle = "0.4.3"
+derive_deref = "1.1.1"
 
 [dependencies.utilities]
 path = "../utilities"
 
-[build-dependencies]
-env-file-reader = "0.3.0"
-anyhow = "*"
+[dependencies.renderer]
+path = "../renderer"
+
+[dependencies.windowing]
+path = "../windowing"
+
 

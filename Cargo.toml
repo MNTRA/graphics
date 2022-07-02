@@ -3,6 +3,7 @@ members = [
    "crates/windowing",
    "crates/renderer",
    "crates/utilities",
+   "crates/application",
 ]
 
 [package]
@@ -20,8 +21,14 @@ glam = "0.21.2"
 indextree = "4.4.0"
 ash-window = "0.10.0"
 
+[dependencies.application]
+path = "crates/application"
+
 [dependencies.windowing]
 path = "crates/windowing"
+
+[dependencies.utilities]
+path = "crates/utilities"
 
 [dependencies.renderer]
 path = "crates/renderer"

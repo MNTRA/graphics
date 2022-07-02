@@ -7,8 +7,7 @@ use skia::{ISize, Surface};
 
 use platform::{BackBuffer, ConcretePlatformImpl, PlatformApi};
 
-#[derive(Default)]
-pub struct Cpu;
+pub struct Cpu(pub(crate) skia::Surface);
 
 impl Driver for Cpu {
     fn create_surface(
@@ -27,5 +26,11 @@ impl Driver for Cpu {
         let back_buffer = <ConcretePlatformImpl as PlatformApi>::BackBuffer::new(surface)?;
         <ConcretePlatformImpl as PlatformApi>::present_backbuffer(window, back_buffer)?;
         Ok(())
+    }
+}
+
+impl Default for Cpu {
+    fn default() -> Self {
+        Self(skia::Surface::new_null((1, 1)).unwrap())
     }
 }

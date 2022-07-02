@@ -1,8 +1,7 @@
 use bevy_ecs::prelude::{Bundle, Component, Entity};
 use derive_deref::{Deref, DerefMut};
 use raw_window_handle::HasRawWindowHandle;
-use renderer::{RenderObject, Surface, WindowDrawTarget};
-use std::{os, sync::atomic::AtomicU32};
+use std::sync::atomic::AtomicU32;
 use tao::{
     event_loop::EventLoopWindowTarget,
     window::{Window as TaoWindow, WindowBuilder as TaoWindowBuilder, WindowId as TaoWindowId},
@@ -22,29 +21,28 @@ pub(crate) struct TaoWindowIdWapper(pub(crate) TaoWindowId);
 
 pub trait Window: std::fmt::Debug + Send + Sync + 'static {
     fn on_create(&self, _: WindowContext<'_>) {}
-    fn root(&mut self) -> RenderObject {
-        RenderObject {}
-    }
     fn close_requested(&mut self, _: WindowContext<'_>) -> bool {
         true
     }
+
+    // fn paint(&mut self, painter: impl Painter) {}
 }
 
 #[derive(Component, Deref, DerefMut)]
 #[repr(transparent)]
-pub(crate) struct OsWindow(TaoWindow);
+pub struct OsWindow(TaoWindow);
 
 #[derive(Component, Deref, DerefMut)]
 #[repr(transparent)]
-pub(crate) struct RootEntitiy(Entity);
+pub struct RootEntitiy(Entity);
 
 #[derive(Component, Deref, DerefMut)]
 #[repr(transparent)]
-pub(crate) struct DynWindow(Box<dyn Window>);
+pub struct DynWindow(Box<dyn Window>);
 
 #[derive(Component)]
 #[repr(transparent)]
-pub(crate) struct Marker;
+pub struct Marker;
 
 #[derive(Bundle)]
 pub struct WindowBundle {
@@ -54,7 +52,7 @@ pub struct WindowBundle {
     os_window: OsWindow,
     raw_id: TaoWindowIdWapper,
     root: RootEntitiy,
-    surface: Surface,
+    // surface: Surface,
 }
 
 impl WindowBundle {
@@ -73,9 +71,6 @@ impl WindowBundle {
             os_window: &mut os_window,
         });
         let raw_id = TaoWindowIdWapper(os_window.id());
-
-        let surface = Surface::new_cpu(&os_window)?;
-
         Ok(Self {
             _m: Marker,
             id,
@@ -83,7 +78,6 @@ impl WindowBundle {
             os_window,
             raw_id,
             root: RootEntitiy(root),
-            surface,
         })
     }
 }
@@ -96,17 +90,10 @@ impl WindowContext<'_> {
     pub fn set_window_title(&mut self, title: impl AsRef<str>) {
         self.os_window.set_title(title.as_ref());
     }
-
 }
 
 unsafe impl HasRawWindowHandle for OsWindow {
     fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         self.0.raw_window_handle()
-    }
-}
-
-impl WindowDrawTarget for OsWindow {
-    fn get_draw_bounds(&self) -> (u32, u32) {
-        self.inner_size().into()
     }
 }

@@ -1,124 +1,92 @@
 use bevy_ecs::{
-    prelude::{Commands, Entity, In, NonSend, Query, QueryState, ResMut, With},
-    system::{assert_is_system, SystemParam},
+    prelude::{Commands, Entity, In, NonSend, Query, ResMut, With},
+    system::assert_is_system, event::Events,
 };
-use renderer::{Surface, WindowDrawTarget};
-use tao::event_loop::EventLoopWindowTarget;
-
-use crate::window::{DynWindow, OsWindow, Window, WindowBundle, WindowContext};
-
-use super::*;
-
-pub trait Event: std::fmt::Debug + Send + Sync + 'static {}
+use tao::event_loop::{EventLoopWindowTarget, ControlFlow};
+use crate::window::{DynWindow, OsWindow, Window, WindowBundle, WindowContext, WindowId, self};
 
 #[derive(Debug)]
 pub enum WindowEvent {
-    Create {
-        window: Box<dyn Window>,
-        window_id: WindowId,
-    },
-    Repaint(WindowId),
-    Delete(WindowId),
     Destroyed(WindowId),
-    Resize {
-        window_id: WindowId,
-        bounds: (u32, u32),
-    },
     CloseRequested(WindowId),
+}
+
+pub const CREATE_WINDOWS_SYS_LABEL: &str = "create-windows";
+#[derive(Debug)]
+pub struct Create {
+    pub window: Box<dyn Window>,
+    pub window_id: WindowId,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Resize {
+    pub window_id: WindowId,
+    pub entity: Entity,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Repaint {
+    pub window_id: WindowId,
+    pub entity: Entity,
 }
 
 macro_rules! impl_event {
    ($($TYPE:ty),*) => {
       $(
-         impl self::Event for $TYPE {}
+         impl ::utilities::Event for $TYPE {}
       )*
    }
 }
 
 impl_event!(
     WindowEvent,
-    String,
-    &'static str,
-    std::sync::Arc<str>,
-    std::borrow::Cow<'static, str>,
-    u8,
-    i8,
-    u16,
-    i16,
-    u32,
-    i32,
-    u64,
-    i64,
-    u128,
-    i128,
-    usize,
-    isize
+    Create,
+    Resize,
+    Repaint
 );
+
+pub(crate) fn create_window_system(
+    mut commands: Commands,
+    mut events: ResMut<Events<Create>>,
+    event_loop: NonSend<EventLoopWindowTarget<()>>,
+    window_id_query: Query<(Entity, &WindowId), With<window::Marker>>,
+) {
+    assert_is_system(create_window_system);
+    for Create { window, window_id } in events.drain() {
+        if window_id_query
+            .iter()
+            .find(|(_, &id)| id == window_id)
+            .is_some()
+        {
+            panic!("Window already existed with {:?}", window_id);
+        }
+        match WindowBundle::new_from_boxed_window(
+            window,
+            window_id,
+            &*event_loop,
+            Entity::from_raw(0),
+        ) {
+            Ok(window_bundle) => commands.spawn().insert_bundle(window_bundle),
+            Err(err) => panic!("{}", err),
+        };
+    }
+}
 
 pub(crate) fn window_events_system(
     mut commands: Commands,
     mut window_events: ResMut<Events<WindowEvent>>,
-    event_loop: NonSend<EventLoopWindowTarget<()>>,
     mut control_flow: ResMut<ControlFlow>,
     window_id_query: Query<(Entity, &WindowId), With<window::Marker>>,
-    mut window_query: Query<
-        (Entity, &mut OsWindow, &mut DynWindow, &mut Surface),
-        With<window::Marker>,
-    >,
+    mut window_query: Query<(Entity, &mut OsWindow, &mut DynWindow), With<window::Marker>>,
 ) -> Vec<WindowId> {
     assert_is_system(window_events_system);
     let mut destroyed_windows = Vec::new();
     for event in window_events.drain() {
         match event {
-            WindowEvent::Create { window, window_id } => {
-                if window_id_query
-                    .iter()
-                    .find(|(_, &id)| id == window_id)
-                    .is_some()
-                {
-                    panic!("Window already existed with {:?}", window_id);
-                }
-                match WindowBundle::new_from_boxed_window(
-                    window,
-                    window_id,
-                    &*event_loop,
-                    Entity::from_raw(0),
-                ) {
-                    Ok(window_bundle) => commands.spawn().insert_bundle(window_bundle),
-                    Err(err) => panic!("{}", err),
-                };
-            }
-            WindowEvent::Delete(_) => {}
             WindowEvent::Destroyed(_) => {
                 if window_id_query.iter().count() == 0 {
                     *control_flow = ControlFlow::Exit;
                 }
-            }
-            WindowEvent::Resize {
-                window_id,
-                bounds: _,
-            } => {
-                let entity = match window_id_query.iter().find(|(_, &id)| id == window_id) {
-                    Some((entity, _)) => entity,
-                    None => panic!("No Window Found for id: {:?}", window_id),
-                };
-                let (mut surface, os_window) = match window_query.get_mut(entity) {
-                    Ok((_, os_window, _, surface)) => (surface, os_window),
-                    Err(err) => panic!("{}", err),
-                };
-
-                // if the bounds are 0 then keep the old surface as skia will panic if
-                // a surface is created with 0 bounds
-                let (width, height) = os_window.get_draw_bounds();
-                if width <= 0 || height <= 0 {
-                    continue;
-                }
-
-                match Surface::new_cpu(&*os_window) {
-                    Ok(new_surface) => *surface = new_surface,
-                    Err(err) => panic!("{}", err),
-                }
-                os_window.request_redraw();
             }
             WindowEvent::CloseRequested(window_id) => {
                 let should_close_window;
@@ -126,7 +94,7 @@ pub(crate) fn window_events_system(
                     window_id_query.iter().find(|(_, &id)| id == window_id)
                 {
                     let (mut os_window, mut dyn_window) = match window_query.get_mut(entity) {
-                        Ok((_, os_window, dyn_window, _)) => (os_window, dyn_window),
+                        Ok((_, os_window, dyn_window)) => (os_window, dyn_window),
                         Err(err) => panic!("{}", err),
                     };
                     should_close_window = dyn_window.close_requested(WindowContext {
@@ -142,20 +110,6 @@ pub(crate) fn window_events_system(
                     destroyed_windows.push(window_id);
                     commands.entity(entity).despawn();
                 }
-            }
-            WindowEvent::Repaint(window_id) => {
-                let entity = match window_id_query.iter().find(|(_, &id)| id == window_id) {
-                    Some((entity, _)) => entity,
-                    None => panic!("No Window Found for id: {:?}", window_id),
-                };
-                let (mut surface, os_window) = match window_query.get_mut(entity) {
-                    Ok((_, os_window, _, surface)) => (surface, os_window),
-                    Err(err) => panic!("{}", err),
-                };
-                match surface.present_surface(&*os_window) {
-                    Ok(_) => {}
-                    Err(err) => panic!("{}", err),
-                };
             }
         }
     }

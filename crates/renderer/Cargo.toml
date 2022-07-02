@@ -17,6 +17,9 @@ rand = "0.8.5"
 [dependencies.utilities]
 path = "../utilities"
 
+[dependencies.windowing]
+path = "../windowing"
+
 [target.'cfg(windows)'.dependencies.windows]
 version = "*"
 features = [
