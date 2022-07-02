@@ -1,0 +1,26 @@
+[package]
+edition = "2021"
+name = "renderer"
+version = "0.1.0"
+
+[dependencies]
+anyhow = "*"
+ash = {version = "*", features=["linked"]}
+ash-window = "0.10.0"
+rafx-api = {version = "0.0.15", features = ["rafx-vulkan"]}
+raw-window-handle = "0.4.3"
+skia = {package = "skia-safe", version = "*", features = ["gpu", "vulkan"]}
+bevy_ecs = "*"
+derive_deref = "1.1.1"
+rand = "0.8.5"
+
+[dependencies.utilities]
+path = "../utilities"
+
+[target.'cfg(windows)'.dependencies.windows]
+version = "*"
+features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_Foundation"
+]

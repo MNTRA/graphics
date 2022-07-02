@@ -1,0 +1,27 @@
+[workspace]
+members = [
+   "crates/windowing",
+   "crates/renderer",
+   "crates/utilities",
+]
+
+[package]
+name = "graphics"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy_ecs = "0.7.0"
+compiled-uuid = "0.1.2"
+derive_deref = "1.1.1"
+glam = "0.21.2"
+indextree = "4.4.0"
+ash-window = "0.10.0"
+
+[dependencies.windowing]
+path = "crates/windowing"
+
+[dependencies.renderer]
+path = "crates/renderer"
