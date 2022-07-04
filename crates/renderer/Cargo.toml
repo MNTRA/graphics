@@ -13,12 +13,10 @@ skia = {package = "skia-safe", version = "*", features = ["gpu", "vulkan"]}
 bevy_ecs = "*"
 derive_deref = "1.1.1"
 rand = "0.8.5"
+id_tree = "1.8.0"
 
 [dependencies.utilities]
 path = "../utilities"
-
-[dependencies.windowing]
-path = "../windowing"
 
 [target.'cfg(windows)'.dependencies.windows]
 version = "*"

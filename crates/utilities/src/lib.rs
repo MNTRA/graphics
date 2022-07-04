@@ -3,9 +3,10 @@ use bevy_ecs::{
     prelude::World,
     schedule::{Schedule, StageLabel, SystemStage},
 };
+use ::tracing::Level;
 
 pub type EcsPluginCallback = fn(&mut World, &mut Schedule) -> ();
-pub trait EcsPlugin {
+pub trait EcsPlugin: std::fmt::Debug {
     fn build(world: &mut World, schedule: &mut Schedule);
 }
 
@@ -17,6 +18,8 @@ pub enum CoreStages {
     PostUpdate,
     Layout,
     Render,
+    Present,
+    Last,
 }
 pub struct EcsContext<D> {
     pub data: D,
@@ -26,6 +29,7 @@ pub struct EcsContext<D> {
 
 impl<D> EcsContext<D> {
     pub fn new(data: D) -> Self {
+        tracing::debug_span!("EcsContext::new");
         let schedule = Schedule::default()
             .with_stage(CoreStages::EventUpdate, SystemStage::parallel())
             .with_stage_after(
@@ -52,6 +56,16 @@ impl<D> EcsContext<D> {
                 CoreStages::Layout,
                 CoreStages::Render,
                 SystemStage::parallel(),
+            )
+            .with_stage_after(
+                CoreStages::Render,
+                CoreStages::Present,
+                SystemStage::parallel(),
+            )
+            .with_stage_after(
+                CoreStages::Present,
+                CoreStages::Last,
+                SystemStage::parallel(),
             );
         Self {
             data,
@@ -63,6 +77,7 @@ impl<D> EcsContext<D> {
     where
         T: Event,
     {
+        tracing::event!(Level::DEBUG, event = format!("{:?}", event));
         if !self.world.contains_resource::<Events<T>>() {
             self.world.init_resource::<Events<T>>();
             self.schedule
@@ -76,6 +91,7 @@ impl<D> EcsContext<D> {
     }
 
     pub fn add_plugin<P: EcsPlugin>(&mut self) {
+        tracing::trace_span!("add_plugin");
         P::build(&mut self.world, &mut self.schedule);
     }
 }
@@ -106,3 +122,25 @@ impl_event!(
     usize,
     isize
 );
+
+pub mod tracing {
+    use std::panic;
+    pub use tracing::*;
+    use tracing_chrome::{ChromeLayerBuilder, FlushGuard};
+    pub use tracing_error;
+    pub use tracing_subscriber::prelude::*;
+
+    pub trait TracingGuard {}
+    impl TracingGuard for FlushGuard {}
+
+    pub fn setup_tracing() -> impl TracingGuard {
+        let old_handler = panic::take_hook();
+        panic::set_hook(Box::new(move |infos| {
+            println!("{}", tracing_error::SpanTrace::capture());
+            old_handler(infos);
+        }));
+        let (chrome_layer, guard) = ChromeLayerBuilder::new().file("./chrome-trace").build();
+        tracing_subscriber::registry().with(chrome_layer).init();
+        guard
+    }
+}

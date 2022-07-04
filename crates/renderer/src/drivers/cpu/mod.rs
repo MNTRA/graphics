@@ -6,6 +6,7 @@ use anyhow::Error;
 use skia::{ISize, Surface};
 
 use platform::{BackBuffer, ConcretePlatformImpl, PlatformApi};
+use utilities::tracing;
 
 pub struct Cpu(pub(crate) skia::Surface);
 
@@ -23,6 +24,7 @@ impl Driver for Cpu {
         window: &impl WindowDrawTarget,
         surface: &mut skia::Surface,
     ) -> anyhow::Result<()> {
+        tracing::debug_span!("SkiaDriver::new_cpu");
         let back_buffer = <ConcretePlatformImpl as PlatformApi>::BackBuffer::new(surface)?;
         <ConcretePlatformImpl as PlatformApi>::present_backbuffer(window, back_buffer)?;
         Ok(())

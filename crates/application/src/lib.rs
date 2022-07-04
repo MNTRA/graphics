@@ -1,10 +1,12 @@
 use std::ops::{Deref, DerefMut};
 
-use utilities::{EcsContext, EcsPlugin, Event};
+use bevy_ecs::{event::Events, schedule::SystemStage};
+use events::{shutdown_system, Shutdown};
+use utilities::{tracing, CoreStages, EcsContext, EcsPlugin, Event};
 use windowing::{
     events::Create,
     window::{Window, WindowId},
-    CallbackTranslator, EventLoop,
+    CallbackTranslator, ControlFlow, EventLoop,
 };
 
 pub struct ApplicationContext<'a, T>(&'a mut EcsContext<T>);
@@ -45,29 +47,31 @@ impl<'a, T> DerefMut for ApplicationContext<'a, T> {
 }
 
 /// Runs the application
-pub fn run_application<A, D>() -> !
+pub fn entry_point<A, D>() -> !
 where
     A: Application<Data = D> + 'static,
     D: Default + 'static,
 {
+    tracing::debug_span!("application::entry_point");
+
     type Callback<A> = fn(ApplicationContext<'_, A>);
-    struct CallbacksTranslator<A> {
-        pub on_initalize: Callback<A>,
-        pub on_shutdown: Callback<A>,
+    struct CallbackTranslatorImpl<A> {
+        pub event_loop_started: Callback<A>,
+        pub event_loop_closed: Callback<A>,
     }
-    impl<A> CallbackTranslator<A> for CallbacksTranslator<A> {
+    impl<A> CallbackTranslator<A> for CallbackTranslatorImpl<A> {
         fn event_loop_started(&mut self, ctx: &mut EcsContext<A>) {
-            (self.on_initalize)(ApplicationContext::new(ctx))
+            (self.event_loop_started)(ApplicationContext::new(ctx))
         }
         fn event_loop_closed(&mut self, ctx: &mut EcsContext<A>) {
-            (self.on_shutdown)(ApplicationContext::new(ctx))
+            (self.event_loop_closed)(ApplicationContext::new(ctx))
         }
     }
     EventLoop::new().run(
         A::Data::default(),
-        CallbacksTranslator {
-            on_initalize: A::initalize,
-            on_shutdown: A::shutdown,
+        CallbackTranslatorImpl {
+            event_loop_started: A::initalize,
+            event_loop_closed: A::shutdown,
         },
     );
 }
@@ -82,7 +86,46 @@ pub trait Application {
 macro_rules! run_app {
     ($APP_TYPE:ty) => {
         fn main() -> ! {
-            ::application::run_application::<$APP_TYPE, <$APP_TYPE as Application>::Data>();
+            let _guard = ::utilities::tracing::setup_tracing();
+            ::application::entry_point::<$APP_TYPE, <$APP_TYPE as Application>::Data>();
         }
     };
+}
+
+#[derive(Debug)]
+pub struct ApplicationPlugin;
+impl EcsPlugin for ApplicationPlugin {
+    fn build(world: &mut bevy_ecs::prelude::World, schedule: &mut bevy_ecs::schedule::Schedule) {
+        world.init_resource::<Events<Shutdown>>();
+        world.init_resource::<ControlFlow>();
+        schedule.stage(CoreStages::EventUpdate, |stage: &mut SystemStage| {
+            stage.add_system(Events::<Shutdown>::update_system);
+            stage
+        });
+        schedule.stage(CoreStages::PreUpdate, |stage: &mut SystemStage| {
+            stage.add_system(shutdown_system);
+            stage
+        });
+    }
+}
+
+mod events {
+    use bevy_ecs::{
+        prelude::{Component, EventReader, ResMut},
+        system::assert_is_system,
+    };
+    use windowing::ControlFlow;
+
+    #[derive(Component)]
+    pub struct Shutdown;
+
+    pub fn shutdown_system(
+        mut control_flow: ResMut<ControlFlow>,
+        shutdown_events: EventReader<Shutdown>,
+    ) {
+        assert_is_system(shutdown_system);
+        if !shutdown_events.is_empty() {
+            *control_flow = ControlFlow::ExitWithCode(0);
+        }
+    }
 }

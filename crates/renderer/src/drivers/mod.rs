@@ -4,6 +4,7 @@ pub mod cpu;
 
 use crate::WindowDrawTarget;
 use skia::ISize;
+use utilities::tracing;
 
 use self::cpu::Cpu;
 
@@ -14,6 +15,7 @@ pub enum SkiaDriver {
 impl SkiaDriver {
     #[inline(always)]
     pub fn new_cpu(target: &impl WindowDrawTarget) -> anyhow::Result<Self> {
+        tracing::debug_span!("SkiaDriver::new_cpu");
         let mut cpu_driver = cpu::Cpu::default();
         let bounds = target.get_draw_bounds();
         let mut surface = cpu_driver.create_surface(target, (bounds.0 as i32, bounds.1 as i32))?;
