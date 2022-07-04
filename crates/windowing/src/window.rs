@@ -5,7 +5,7 @@ use bevy_ecs::{
 use derive_deref::{Deref, DerefMut};
 use raw_window_handle::HasRawWindowHandle;
 use renderer::WindowDrawTarget;
-use std::sync::{atomic::AtomicU32, Mutex};
+use std::sync::{atomic::AtomicU32};
 use tao::{
     event_loop::EventLoopWindowTarget,
     window::{Window as TaoWindow, WindowBuilder as TaoWindowBuilder, WindowId as TaoWindowId},
@@ -155,6 +155,7 @@ impl WindowContext<'_> {
 
     // ===========================================================================
 
+    #[allow(unused)]
     fn get_underlying_os_window(&self) -> &OsWindow {
         self.world
             .get::<OsWindow>(self.entity)

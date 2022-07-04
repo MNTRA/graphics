@@ -1,12 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
-use bevy_ecs::{event::Events, schedule::SystemStage};
-use events::{shutdown_system, Shutdown};
-use utilities::{tracing, CoreStages, EcsContext, EcsPlugin, Event};
+use utilities::{tracing, EcsContext, EcsPlugin, Event};
 use windowing::{
     events::Create,
     window::{Window, WindowId},
-    CallbackTranslator, ControlFlow, EventLoop,
+    CallbackTranslator, EventLoop,
 };
 
 pub struct ApplicationContext<'a, T>(&'a mut EcsContext<T>);
@@ -86,46 +84,14 @@ pub trait Application {
 macro_rules! run_app {
     ($APP_TYPE:ty) => {
         fn main() -> ! {
-            let _guard = ::utilities::tracing::setup_tracing();
+            // let _guard = ::utilities::tracing::setup_tracing();
             ::application::entry_point::<$APP_TYPE, <$APP_TYPE as Application>::Data>();
         }
     };
 }
 
-#[derive(Debug)]
-pub struct ApplicationPlugin;
-impl EcsPlugin for ApplicationPlugin {
-    fn build(world: &mut bevy_ecs::prelude::World, schedule: &mut bevy_ecs::schedule::Schedule) {
-        world.init_resource::<Events<Shutdown>>();
-        world.init_resource::<ControlFlow>();
-        schedule.stage(CoreStages::EventUpdate, |stage: &mut SystemStage| {
-            stage.add_system(Events::<Shutdown>::update_system);
-            stage
-        });
-        schedule.stage(CoreStages::PreUpdate, |stage: &mut SystemStage| {
-            stage.add_system(shutdown_system);
-            stage
-        });
-    }
-}
-
-mod events {
-    use bevy_ecs::{
-        prelude::{Component, EventReader, ResMut},
-        system::assert_is_system,
-    };
-    use windowing::ControlFlow;
-
-    #[derive(Component)]
-    pub struct Shutdown;
-
-    pub fn shutdown_system(
-        mut control_flow: ResMut<ControlFlow>,
-        shutdown_events: EventReader<Shutdown>,
-    ) {
-        assert_is_system(shutdown_system);
-        if !shutdown_events.is_empty() {
-            *control_flow = ControlFlow::ExitWithCode(0);
-        }
-    }
-}
+// #[derive(Debug)]
+// pub struct ApplicationPlugin;
+// impl EcsPlugin for ApplicationPlugin {
+//     fn build(world: &mut bevy_ecs::prelude::World, schedule: &mut bevy_ecs::schedule::Schedule) {}
+// }
